@@ -3,9 +3,9 @@ import os, requests
 
 app = Flask(__name__)
 
-API_KEY = os.environ.get('API_KEY', '')
+# Çift kontrol: Render Environment kısmından API_KEY'i büyük-küçük harfe duyarlı çeker
+API_KEY = os.environ.get('API_KEY', '').strip()
 SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', "Sen MUNNI 2.0'sın.")
-URL = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}'
 
 HTML = '''<!DOCTYPE html>
 <html>
@@ -48,7 +48,6 @@ HTML = '''<!DOCTYPE html>
                 const text = userInput.value.trim();
                 if (!text) return;
 
-                // Kullanıcı mesajını ekrana ekle
                 const userDiv = document.createElement("div");
                 userDiv.className = "message user-message";
                 userDiv.innerText = text;
@@ -72,18 +71,14 @@ HTML = '''<!DOCTYPE html>
                 } catch (err) {
                     const errorDiv = document.createElement("div");
                     errorDiv.className = "message munni-message";
-                    errorDiv.innerText = "😾 Xatolik yuz berdi.";
+                    errorDiv.innerText = "😾 Bağlantı hatası oluştu.";
                     chatBox.appendChild(errorDiv);
                 }
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
 
             sendBtn.onclick = sendMessage;
-            userInput.onkeypress = function(e) {
-                if (e.key === "Enter") {
-                    sendMessage();
-                }
-            };
+            userInput.onkeypress = function(e) {if (e.key === "Enter") sendMessage();};
         });
     </script>
 </body>
@@ -98,13 +93,24 @@ def home():
 @app.route('/ask', methods=['POST'])
 def ask():
     user_message = request.get_json().get('message', '')
+    
+    if not API_KEY or API_KEY == "":
+        return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış veya boş!"})
+        
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}'
     payload = {'contents': [{'parts': [{'text': user_message}]}], 'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}}
+    
     try:
-        res = requests.post(URL, json=payload)
-        reply = res.json()['candidates'][0]['content']['parts'][0]['text']
+        res = requests.post(url, json=payload)
+        res_data = res.json()
+        
+        if 'error' in res_data:
+            return jsonify({'reply': f"Google Hatası: {res_data['error']['message']}"})
+            
+        reply = res_data['candidates'][0]['content']['parts'][0]['text']
         return jsonify({'reply': reply})
-    except: 
-        return jsonify({'reply': "Xatolik bo'ldi."})
+    except Exception as e: 
+        return jsonify({'reply': f"Sistem Hatası: {str(e)}"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
