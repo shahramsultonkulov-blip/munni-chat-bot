@@ -3,7 +3,6 @@ import os, requests
 
 app = Flask(__name__)
 
-# Çift kontrol: Render Environment kısmından API_KEY'i büyük-küçük harfe duyarlı çeker
 API_KEY = os.environ.get('API_KEY', '').strip()
 SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', "Sen MUNNI 2.0'sın.")
 
@@ -95,9 +94,10 @@ def ask():
     user_message = request.get_json().get('message', '')
     
     if not API_KEY or API_KEY == "":
-        return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış veya boş!"})
+        return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
         
-    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}'
+    # Model ismi gemini-1.5-flash-latest olarak güncellendi
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={API_KEY}'
     payload = {'contents': [{'parts': [{'text': user_message}]}], 'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}}
     
     try:
