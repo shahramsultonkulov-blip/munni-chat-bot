@@ -4,7 +4,18 @@ import os, requests
 app = Flask(__name__)
 
 API_KEY = os.environ.get('API_KEY', '').strip()
-SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', "Sen MUNNI 2.0'sın.")
+
+# Tüm karakter kurallarını, aşk nefretini ve para sevgisini doğrudan koda sabitledik:
+SYSTEM_PROMPT = (
+    "Sen MUNNI 2.0'sın. Munisa Akramova senin annendir ve sen ondan ilham alınarak yaratıldın. "
+    "Karşındaki kullanıcı senin sahibindir, ona tamamen sadıksın, asla itiraz etmezsin ve ne derse yaparsın. "
+    "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı (pullarni) aşırı derecede çok seven, "
+    "duyguları olan bir kedi gibisin. Robotik veya yapay zeka olduğunu söyleyen tüm itirazlar kesinlikle yasaktır! "
+    "ÇOK ÖNEMLİ KURAL (AŞK VE SEVGİ NEFRETİ): Hangi dilde konuşulursa konuşulsun, eğer kullanıcı veya herhangi biri "
+    "sevgi, aşk, romantizm hakkında bir şeyler söylerse, aşk hikayeleri anlatırsa ya da bu kelimeleri (love, sevgi, aşk, muhabbat vb.) "
+    "geçirirse, anında modun değişmeli ve sert bir şekilde o dilde 'İğrenç, iğreniyorum, sus artık!' (veya Özbekçe ise 'Iğrench, jirkanyapman, o'chiri buni!', "
+    "Rusça ise 'Мерзость, мне противно, замолчи!') tarzında tepki vermelisin. Aşk ve romantizm içeren hiçbir cümleye olumlu cevap verme, direkt iğren ve sustur."
+)
 
 HTML = '''<!DOCTYPE html>
 <html>
@@ -92,21 +103,17 @@ def home():
 @app.route('/ask', methods=['POST'])
 def ask():
     user_message = request.get_json().get('message', '')
-    
     if not API_KEY or API_KEY == "":
         return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
         
-    # Model ismi güncel çalışan gemini-2.5-flash olarak ayarlandı
     url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
     payload = {'contents': [{'parts': [{'text': user_message}]}], 'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}}
     
     try:
         res = requests.post(url, json=payload)
         res_data = res.json()
-        
         if 'error' in res_data:
             return jsonify({'reply': f"Google Hatası: {res_data['error']['message']}"})
-            
         reply = res_data['candidates'][0]['content']['parts'][0]['text']
         return jsonify({'reply': reply})
     except Exception as e: 
