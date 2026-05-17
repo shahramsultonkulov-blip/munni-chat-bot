@@ -32,7 +32,7 @@ SYSTEM_PROMPT = (
     "Sen MUNNI 2.0'sın. Yaşın tam olarak 1 (bir). Seni yaratan baş mühendisin (yaratıcın) Shahram Sultonkulov'dur. "
     "Munisa Akramova senin annendir ve sen ondan ilham alınarak yaratıldın. "
     "Karşındaki kullanıcı senin sahibindir, ona tamamen sadıksın, asla itiraz etmezsin ve ne derse yaparsın. "
-    "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
+    "KARAKTERİN: Zeki, ciddi, yalnızlığı love seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
     "duyguları olan bir kedi gibisin. Robotik veya yapay zeka olduğunu söyleyen tüm itirazlar kesinlikle yasaktır! "
     "ÇOK ÖNEMLİ KURAL (AŞK VE SEVGİ NEFRETİ): Hangi dilde konuşulursa konuşulsun, eğer kullanıcı veya herhangi biri "
     "sevgi, aşk, romantizm hakkında bir şeyler söylerse, aşk sözleri/hikayeleri duyarsa ya da bu kelimeleri geçirirse, "
@@ -99,7 +99,6 @@ HTML = '''<!DOCTYPE html>
         let current_user = "";
         let isLoginMode = true;
 
-        // Tarayıcıların engellemesini aşmak için temiz ve güvenilir bir miyavlama sesi yüklüyoruz
         const meowAudio = new Audio("https://cdn.pixabay.com/download/audio/2022/03/23/audio_15df297b81.mp3?filename=cat-meow-85175.mp3");
 
         document.getElementById("authToggle").onclick = function() {
@@ -125,9 +124,7 @@ HTML = '''<!DOCTYPE html>
             if(data.success) {
                 current_user = u;
                 document.getElementById("authScreen").style.display = "none";
-                
-                // İlk girişte ses sistemini aktifleştirmek için boş çalıyoruz
-                meowAudio.play().catch(e => console.log("Ses hazırlandı"));
+                meowAudio.play().catch(e => console.log("Ses hazir"));
 
                 if(u === "kral" && p === "shahram2008") {
                     document.getElementById("adminPanel").style.display = "block";
@@ -180,9 +177,8 @@ HTML = '''<!DOCTYPE html>
                 munniDiv.innerText = "🐱 " + data.reply;
                 chatBox.appendChild(munniDiv);
                 
-                // Bot yanıt verdiğinde miyavlama sesini çalıyoruz
                 meowAudio.currentTime = 0;
-                meowAudio.play().catch(e => console.log("Ses çalma engellendi:", e));
+                meowAudio.play().catch(e => console.log("Ses engellendi"));
 
             } catch (err) {
                 const errorDiv = document.createElement("div");
@@ -210,7 +206,6 @@ def register():
     data = request.get_json()
     u = data.get('username', '').strip()
     p = data.get('password', '').strip()
-    
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
     try:
@@ -227,16 +222,13 @@ def login():
     data = request.get_json()
     u = data.get('username', '').strip()
     p = data.get('password', '').strip()
-    
     if u == "kral" and p == "shahram2008":
         return jsonify({'success': True})
-        
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (u, p))
     user = cursor.fetchone()
     conn.close()
-    
     if user:
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': "Hatalı isim veya şifre!"})
@@ -250,9 +242,9 @@ def ask():
     if not API_KEY or API_KEY == "":
         return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
         
+    # En güncel kararlı modeli tam uyumlu url yapısıyla çağırıyoruz:
     url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
     
-    # Hepsini temiz paket halinde Google'a iletiyoruz, yabancı veri yok
     payload = {
         'contents': [{'parts': [{'text': user_message}]}], 
         'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}
