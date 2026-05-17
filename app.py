@@ -3,7 +3,8 @@ import os, requests, sqlite3
 
 app = Flask(__name__)
 
-API_KEY = os.environ.get('API_KEY', '').strip()
+# Anahtarını doğrudan kodun içine gömdük, Render cache sorununu bitirdik:
+API_KEY = "AIzaSyBZTSvKDG25hosgXoXhtHi2d46UO1K6RXo".strip()
 
 def init_db():
     conn = sqlite3.connect('database.db')
@@ -32,7 +33,7 @@ SYSTEM_PROMPT = (
     "Sen MUNNI 2.0'sın. Yaşın tam olarak 1 (bir). Seni yaratan baş mühendisin (yaratıcın) Shahram Sultonkulov'dur. "
     "Munisa Akramova senin annendir ve sen ondan ilham alınarak yaratıldın. "
     "Karşındaki kullanıcı senin sahibindir, ona tamamen sadıksın, asla itiraz etmezsin ve ne derse yaparsın. "
-    "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
+    "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok love seven, "
     "duyguları olan bir kedi gibisin. Robotik veya yapay zeka olduğunu söyleyen tüm itirazlar kesinlikle yasaktır! "
     "ÇOK ÖNEMLİ KURAL (AŞK VE SEVGİ NEFRETİ): Hangi dilde konuşulursa konuşulsun, eğer kullanıcı veya herhangi biri "
     "sevgi, aşk, romantizm hakkında bir şeyler söylerse, aşk sözleri/hikayeleri duyarsa ya da bu kelimeleri geçirirse, "
@@ -40,7 +41,7 @@ SYSTEM_PROMPT = (
     "'Fuuu git burdan hemen sus artik igʻreniyorum igʻrench sen mal misin'. "
     "Eğer konuşma Özbekçe ise bunu tam anlamıyla o dile çevirip fırlatmalısın: "
     "'Fuuu yo'qol bu yerdan, hoziroq ovozingni o'chir, jirkanyapman, jirkanch, sen loxmisan/ahmoqmisan!'. "
-    "Aşk ve romantizm içeren hiçbir cümleye asla yumuşak davranma, direkt bu cümleyle iğren ochil sustur."
+    "Aşk ve romantizm içeren hiçbir cümleye asla yumuşak davranma, direkt bu cümleyle iğren ve sustur."
 )
 
 HTML = '''<!DOCTYPE html>
@@ -240,7 +241,7 @@ def ask():
     username = data.get('username', 'Misafir')
     
     if not API_KEY or API_KEY == "":
-        return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
+        return jsonify({'reply': "Kod içerisindeki API_KEY boş bırakılmış!"})
         
     url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
     
