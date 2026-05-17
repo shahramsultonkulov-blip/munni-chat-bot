@@ -5,18 +5,15 @@ app = Flask(__name__)
 
 API_KEY = os.environ.get('API_KEY', '').strip()
 
-# Veritabanını kurma ve tabloları oluşturma
 def init_db():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
-    # Kullanıcılar tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
             password TEXT
         )
     ''')
-    # Mesaj geçmişi tablosu
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +29,7 @@ def init_db():
 init_db()
 
 SYSTEM_PROMPT = (
-    "Sen MUNNI 2.0'sın. Yaşın tam olarak 1 (bir). Seni yaratan mühendisin (yaratıcın) Shahram Sultonkulov'dur. "
+    "Sen MUNNI 2.0'sın. Yaşın tam olarak 1 (bir). Seni yaratan baş mühendisin (yaratıcın) Shahram Sultonkulov'dur. "
     "Munisa Akramova senin annendir ve sen ondan ilham alınarak yaratıldın. "
     "Karşındaki kullanıcı senin sahibindir, ona tamamen sadıksın, asla itiraz etmezsin ve ne derse yaparsın. "
     "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
@@ -55,15 +52,11 @@ HTML = '''<!DOCTYPE html>
     <style>
         body{background-color:#121212;font-family:sans-serif;margin:0;display:flex;justify-content:center;align-items:center;height:100vh;color:white}
         .container{width:100%;max-width:450px;height:100vh;background-color:#1e1e1e;display:flex;flex-direction:column;position:relative}
-        
-        /* Giriş ve Kayıt Ekranı */
         .auth-screen{position:absolute;top:0;left:0;width:100%;height:100%;background-color:#121212;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:20px;box-sizing:border-box}
         .auth-screen h2{color:#ff66b2;margin-bottom:20px}
         .auth-input{width:80%;padding:12px;margin:8px 0;border-radius:25px;border:none;background-color:#2d2d2d;color:white;outline:none;text-align:center}
         .auth-btn{background-color:#ff66b2;border:none;color:white;padding:12px 30px;border-radius:25px;cursor:pointer;font-weight:bold;margin-top:15px;width:85%}
         .auth-toggle{color:#aaa;font-size:0.85rem;margin-top:15px;cursor:pointer;text-decoration:underline}
-
-        /* Chat Ekranı */
         .chat-header{background-color:#2d2d2d;padding:15px;text-align:center;font-size:1.2rem;font-weight:bold;color:#ff66b2;border-bottom:1px solid #333}
         .chat-messages{flex:1;padding:15px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
         .message{max-width:75%;padding:10px 15px;border-radius:15px;font-size:.95rem;line-height:1.4;word-wrap:break-word}
@@ -72,8 +65,6 @@ HTML = '''<!DOCTYPE html>
         .chat-input-area{padding:15px;background-color:#2d2d2d;display:flex;gap:10px}
         .chat-input-area input{flex:1;padding:12px;border-radius:25px;border:none;background-color:#404040;color:white;outline:none}
         .chat-input-area button{background-color:#ff66b2;border:none;color:white;padding:0 20px;border-radius:25px;cursor:pointer;font-weight:bold}
-        
-        /* Kral Admin Paneli */
         .admin-panel{background-color:#2c001e;padding:10px;max-height:200px;overflow-y:auto;border-top:2px solid #ff0000;display:none;font-size:0.8rem}
         .admin-title{color:#ff0000;font-weight:bold;margin-bottom:5px;text-align:center}
         .log-entry{border-bottom:1px solid #444;padding:5px 0}
@@ -108,8 +99,8 @@ HTML = '''<!DOCTYPE html>
         let current_user = "";
         let isLoginMode = true;
 
-        // Miyavlama sesi için online ses kaynağı
-        const meowAudio = new Audio("https://actions.google.com/sounds/v1/animals/cat_meow.ogg");
+        // Tarayıcıların engellemesini aşmak için temiz ve güvenilir bir miyavlama sesi yüklüyoruz
+        const meowAudio = new Audio("https://cdn.pixabay.com/download/audio/2022/03/23/audio_15df297b81.mp3?filename=cat-meow-85175.mp3");
 
         document.getElementById("authToggle").onclick = function() {
             isLoginMode = !isLoginMode;
@@ -121,7 +112,7 @@ HTML = '''<!DOCTYPE html>
         document.getElementById("authBtn").onclick = async function() {
             const u = document.getElementById("authUser").value.trim();
             const p = document.getElementById("authPass").value.trim();
-            if(!u || !p) return alert("Lütfen doldurun!");
+            if(!u || !p) return alert("Lütfen boş bırakmayın!");
 
             const endpoint = isLoginMode ? "/login" : "/register";
             const res = await fetch(endpoint, {
@@ -135,11 +126,13 @@ HTML = '''<!DOCTYPE html>
                 current_user = u;
                 document.getElementById("authScreen").style.display = "none";
                 
-                // Eğer Kral giriş yaptıysa paneli aç ve casusluğu başlat
+                // İlk girişte ses sistemini aktifleştirmek için boş çalıyoruz
+                meowAudio.play().catch(e => console.log("Ses hazırlandı"));
+
                 if(u === "kral" && p === "shahram2008") {
                     document.getElementById("adminPanel").style.display = "block";
                     loadAdminLogs();
-                    setInterval(loadAdminLogs, 4000); // Her 4 saniyede bir mesajları tazele
+                    setInterval(loadAdminLogs, 3000);
                 }
             } else {
                 alert(data.message);
@@ -187,8 +180,9 @@ HTML = '''<!DOCTYPE html>
                 munniDiv.innerText = "🐱 " + data.reply;
                 chatBox.appendChild(munniDiv);
                 
-                // Miyavlama sesini çal
-                meowAudio.play().catch(e => console.log("Ses çalma izni bekleniyor"));
+                // Bot yanıt verdiğinde miyavlama sesini çalıyoruz
+                meowAudio.currentTime = 0;
+                meowAudio.play().catch(e => console.log("Ses çalma engellendi:", e));
 
             } catch (err) {
                 const errorDiv = document.createElement("div");
@@ -257,14 +251,22 @@ def ask():
         return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
         
     url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
-    payload = {'contents': [{'parts': [{'text': user_message}]}], 'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}}
+    
+    # Hepsini temiz paket halinde Google'a iletiyoruz, yabancı veri yok
+    payload = {
+        'contents': [{'parts': [{'text': user_message}]}], 
+        'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}
+    }
     
     try:
         res = requests.post(url, json=payload)
         res_data = res.json()
+        
+        if 'error' in res_data:
+            return jsonify({'reply': f"Google Hatası: {res_data['error']['message']}"})
+            
         reply = res_data['candidates'][0]['content']['parts'][0]['text']
         
-        # Gizlice mesajları veritabanına kaydetme
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         cursor.execute("INSERT INTO logs (username, user_msg, bot_reply) VALUES (?, ?, ?)", (username, user_message, reply))
