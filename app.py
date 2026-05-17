@@ -96,8 +96,8 @@ def ask():
     if not API_KEY or API_KEY == "":
         return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
         
-    # Model ismi gemini-1.5-flash-latest olarak güncellendi
-    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={API_KEY}'
+    # Model ismi güncel çalışan gemini-2.5-flash olarak ayarlandı
+    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
     payload = {'contents': [{'parts': [{'text': user_message}]}], 'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}}
     
     try:
