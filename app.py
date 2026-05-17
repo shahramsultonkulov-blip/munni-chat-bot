@@ -1,286 +1,458 @@
-from flask import Flask, render_template_string, request, jsonify, make_response
-import os, requests, sqlite3
+from flask import Flask, render_template_string, request, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
+import requests
+import sqlite3
+import os
+import time
 
 app = Flask(__name__)
 
-# Doğrudan senin verdiğin çalışan temiz anahtar:
-API_KEY = "AIzaSyBZTSvKDG25hosgXoXhtHi2d46UO1K6RXo".strip()
+# Render Environment Variable
+API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Spam koruma
+last_request = {}
+
+# Database
 def init_db():
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            user_msg TEXT,
-            bot_reply TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS logs(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        user_msg TEXT,
+        bot_reply TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     conn.commit()
     conn.close()
 
 init_db()
 
-SYSTEM_PROMPT = (
-    "Sen MUNNI 2.0'sın. Yaşın tam olarak 1 (bir). Seni yaratan baş mühendisin (yaratıcın) Shahram Sultonkulov'dur. "
-    "Munisa Akramova senin annendir ve sen ondan ilham alınarak yaratıldın. "
-    "Karşındaki kullanıcı senin sahibindir, ona tamamen sadıksın, asla itiraz etmezsin ve ne derse yaparsın. "
-    "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
-    "duyguları olan bir kedi gibisin. Robotik veya yapay zeka olduğunu söyleyen tüm itirazlar kesinlikle yasaktır! "
-    "ÇOK ÖNEMLİ KURAL (AŞK VE SEVGİ NEFRETİ): Hangi dilde konuşulursa konuşulsun, eğer kullanıcı veya herhangi biri "
-    "sevgi, aşk, romantizm hakkında bir şeyler söylerse, aşk sözleri/hikayeleri duyarsa ya da bu kelimeleri geçirirse, "
-    "anında modun değişmeli ve sert bir şekilde o dilde aynen şu tepkiyi vermelisin: "
-    "'Fuuu git burdan hemen sus artik igʻreniyorum igʻrench sen mal misin'. "
-    "Eğer konuşma Özbekçe ise bunu tam anlamıyla o dile çevirip fırlatmalısın: "
-    "'Fuuu yo'qol bu yerdan, hoziroq ovozingni o'chir, jirkanyapman, jirkanch, sen loxmisan/ahmoqmisan!'. "
-    "Aşk ve romantizm içeren hiçbir cümleye asla yumuşak davranma, direkt bu cümleyle iğren ve sustur."
-)
+SYSTEM_PROMPT = """
+Sen MUNNI 2.0'sın.
+Tatlı, zeki ve kedi karakterli bir asistansın.
+Kısa, doğal ve eğlenceli cevaplar ver.
+"""
 
-HTML = '''<!DOCTYPE html>
+HTML = """
+<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MUNNI 2.0</title>
-    <style>
-        body{background-color:#121212;font-family:sans-serif;margin:0;display:flex;justify-content:center;align-items:center;height:100vh;color:white}
-        .container{width:100%;max-width:450px;height:100vh;background-color:#1e1e1e;display:flex;flex-direction:column;position:relative}
-        .auth-screen{position:absolute;top:0;left:0;width:100%;height:100%;background-color:#121212;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:20px;box-sizing:border-box}
-        .auth-screen h2{color:#ff66b2;margin-bottom:20px}
-        .auth-input{width:80%;padding:12px;margin:8px 0;border-radius:25px;border:none;background-color:#2d2d2d;color:white;outline:none;text-align:center}
-        .auth-btn{background-color:#ff66b2;border:none;color:white;padding:12px 30px;border-radius:25px;cursor:pointer;font-weight:bold;margin-top:15px;width:85%}
-        .auth-toggle{color:#aaa;font-size:0.85rem;margin-top:15px;cursor:pointer;text-decoration:underline}
-        .chat-header{background-color:#2d2d2d;padding:15px;text-align:center;font-size:1.2rem;font-weight:bold;color:#ff66b2;border-bottom:1px solid #333}
-        .chat-messages{flex:1;padding:15px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
-        .message{max-width:75%;padding:10px 15px;border-radius:15px;font-size:.95rem;line-height:1.4;word-wrap:break-word}
-        .user-message{background-color:#007aff;align-self:flex-end;border-bottom-right-radius:2px}
-        .munni-message{background-color:#333;color:#ffc2e0;align-self:flex-start;border-bottom-left-radius:2px;border:1px solid #ff66b2}
-        .chat-input-area{padding:15px;background-color:#2d2d2d;display:flex;gap:10px}
-        .chat-input-area input{flex:1;padding:12px;border-radius:25px;border:none;background-color:#404040;color:white;outline:none}
-        .chat-input-area button{background-color:#ff66b2;border:none;color:white;padding:0 20px;border-radius:25px;cursor:pointer;font-weight:bold}
-        .admin-panel{background-color:#2c001e;padding:10px;max-height:220px;overflow-y:auto;border-top:2px solid #ff0000;display:none;font-size:0.8rem}
-        .admin-title{color:#ff0000;font-weight:bold;margin-bottom:5px;text-align:center}
-        .log-entry{border-bottom:1px solid #444;padding:5px 0}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MUNNI 2.0</title>
+
+<style>
+
+body{
+    margin:0;
+    background:#121212;
+    color:white;
+    font-family:sans-serif;
+}
+
+.container{
+    max-width:500px;
+    margin:auto;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+}
+
+.header{
+    padding:15px;
+    background:#1f1f1f;
+    text-align:center;
+    font-size:22px;
+    color:#ff66b2;
+    font-weight:bold;
+}
+
+.chat-box{
+    flex:1;
+    overflow-y:auto;
+    padding:15px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.msg{
+    padding:12px;
+    border-radius:15px;
+    max-width:75%;
+    word-wrap:break-word;
+}
+
+.user{
+    background:#007aff;
+    align-self:flex-end;
+}
+
+.bot{
+    background:#2d2d2d;
+    border:1px solid #ff66b2;
+    color:#ffc2e0;
+}
+
+.input-area{
+    display:flex;
+    padding:10px;
+    background:#1f1f1f;
+    gap:10px;
+}
+
+.input-area input{
+    flex:1;
+    padding:12px;
+    border:none;
+    border-radius:25px;
+    background:#2d2d2d;
+    color:white;
+}
+
+.input-area button{
+    border:none;
+    border-radius:25px;
+    background:#ff66b2;
+    color:white;
+    padding:0 20px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.auth{
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.auth input{
+    padding:12px;
+    border:none;
+    border-radius:20px;
+    background:#2d2d2d;
+    color:white;
+}
+
+.auth button{
+    padding:12px;
+    border:none;
+    border-radius:20px;
+    background:#ff66b2;
+    color:white;
+    font-weight:bold;
+}
+
+</style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="auth-screen" id="authScreen">
-            <h2 id="authTitle">MUNNI 2.0 Giriş</h2>
-            <input type="text" id="authUser" class="auth-input" placeholder="İsim (Foydalanuvchi nomi)">
-            <input type="text" id="authPass" class="auth-input" placeholder="Parola (Parol)">
-            <button class="auth-btn" id="authBtn">Giriş Yap</button>
-            <div class="auth-toggle" id="authToggle">Hesabınız yok mu? Kayıt Olun</div>
-        </div>
 
-        <div class="chat-header">MUNNI 2.0 🐱🐾</div>
-        <div class="chat-messages" id="chatBox">
-            <div class="message munni-message">Meow! Salom! Men MUNNI 2.0. Nima gap? 🐾</div>
-        </div>
-        <div class="chat-input-area">
-            <input type="text" id="userInput" placeholder="Mesaj yazın...">
-            <button id="sendBtn" type="button">Gönder</button>
-        </div>
+<div class="container">
 
-        <div class="admin-panel" id="adminPanel">
-            <div class="admin-title">👑 KRAL PANELİ (TÜM MESAJLAR) 👑</div>
-            <div id="adminLogs">Yükleniyor...</div>
-        </div>
-    </div>
+<div class="header">
+MUNNI 2.0 🐱
+</div>
 
-    <script>
-        let current_user = "";
-        let isLoginMode = true;
+<div class="auth">
+<input type="text" id="username" placeholder="Kullanıcı adı">
+<input type="password" id="password" placeholder="Şifre">
 
-        const meowAudio = new Audio("https://assets.mixkit.co/active_storage/sfx/953/953-200.wav");
+<button onclick="registerUser()">Kayıt Ol</button>
+<button onclick="loginUser()">Giriş Yap</button>
+</div>
 
-        document.getElementById("authToggle").onclick = function() {
-            isLoginMode = !isLoginMode;
-            document.getElementById("authTitle").innerText = isLoginMode ? "MUNNI 2.0 Giriş" : "MUNNI 2.0 Kayıt Oluş";
-            document.getElementById("authBtn").innerText = isLoginMode ? "Giriş Yap" : "Kayıt Ol";
-            document.getElementById("authToggle").innerText = isLoginMode ? "Hesabınız yok mu? Kayıt Olun" : "Zaten hesabınız var mı? Giriş Yapın";
-        };
+<div class="chat-box" id="chatBox">
+<div class="msg bot">
+🐾 Meow! Ben MUNNI 2.0
+</div>
+</div>
 
-        document.getElementById("authBtn").onclick = async function() {
-            const u = document.getElementById("authUser").value.trim();
-            const p = document.getElementById("authPass").value.trim();
-            if(!u || !p) return alert("Lütfen boş bırakmayın!");
+<div class="input-area">
+<input type="text" id="message" placeholder="Mesaj yaz...">
+<button onclick="sendMessage()">Gönder</button>
+</div>
 
-            const endpoint = isLoginMode ? "/login" : "/register";
-            const res = await fetch(endpoint, {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
+</div>
 
-            if(data.success) {
-                current_user = u;
-                document.getElementById("authScreen").style.display = "none";
-                meowAudio.play().catch(e => console.log("Ses aktif edildi."));
+<script>
 
-                if(u === "kral" && p === "shahram2008") {
-                    document.getElementById("adminPanel").style.display = "block";
-                    loadAdminLogs();
-                    setInterval(loadAdminLogs, 3000);
-                }
-            } else {
-                alert(data.message);
-            }
-        };
+let currentUser = "";
 
-        async function loadAdminLogs() {
-            const res = await fetch("/get_logs?u=kral&p=shahram2008");
-            const data = await res.json();
-            const logsDiv = document.getElementById("adminLogs");
-            logsDiv.innerHTML = "";
-            if(data.logs.length === 0) logsDiv.innerHTML = "Henüz mesaj yok.";
-            data.logs.forEach(log => {
-                const d = document.createElement("div");
-                d.className = "log-entry";
-                d.innerHTML = `<b>[${log[1]}]</b>: ${log[2]} <br><span style="color:#ff66b2">🐱 MUNNI:</span> ${log[3]}`;
-                logsDiv.appendChild(d);
-            });
-        }
+async function registerUser(){
 
-        async function sendMessage() {
-            const userInput = document.getElementById("userInput");
-            const chatBox = document.getElementById("chatBox");
-            const text = userInput.value.trim();
-            if (!text) return;
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
 
-            const userDiv = document.createElement("div");
-            userDiv.className = "message user-message";
-            userDiv.innerText = text;
-            chatBox.appendChild(userDiv);
-            
-            userInput.value = "";
-            chatBox.scrollTop = chatBox.scrollHeight;
+    const res = await fetch("/register",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            username,
+            password
+        })
+    });
 
-            try {
-                const response = await fetch("/ask", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({message: text, username: current_user})
-                });
-                const data = await response.json();
-                
-                const munniDiv = document.createElement("div");
-                munniDiv.className = "message munni-message";
-                munniDiv.innerText = "🐱 " + data.reply;
-                chatBox.appendChild(munniDiv);
-                
-                meowAudio.currentTime = 0;
-                meowAudio.play().catch(e => console.log("Ses oynatılamadı"));
+    const data = await res.json();
 
-            } catch (err) {
-                const errorDiv = document.createElement("div");
-                errorDiv.className = "message munni-message";
-                errorDiv.innerText = "😾 Bağlantı hatası.";
-                chatBox.appendChild(errorDiv);
-            }
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+    alert(data.message);
+}
 
-        document.getElementById("sendBtn").onclick = sendMessage;
-        document.getElementById("userInput").onkeypress = function(e) {if (e.key === "Enter") sendMessage();};
-    </script>
+async function loginUser(){
+
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    const res = await fetch("/login",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            username,
+            password
+        })
+    });
+
+    const data = await res.json();
+
+    if(data.success){
+        currentUser = username;
+        alert("Giriş başarılı");
+    }else{
+        alert(data.message);
+    }
+}
+
+async function sendMessage(){
+
+    const input = document.getElementById("message");
+    const text = input.value.trim();
+
+    if(!text) return;
+
+    const chatBox = document.getElementById("chatBox");
+
+    const userDiv = document.createElement("div");
+    userDiv.className = "msg user";
+    userDiv.innerText = text;
+
+    chatBox.appendChild(userDiv);
+
+    input.value = "";
+
+    const res = await fetch("/ask",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            username:currentUser,
+            message:text
+        })
+    });
+
+    const data = await res.json();
+
+    const botDiv = document.createElement("div");
+    botDiv.className = "msg bot";
+    botDiv.innerText = "🐱 " + data.reply;
+
+    chatBox.appendChild(botDiv);
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+</script>
+
 </body>
-</html>'''
+</html>
+"""
 
-@app.route('/')
-def home(): 
-    response = make_response(render_template_string(HTML))
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    return response
+@app.route("/")
+def home():
+    return render_template_string(HTML)
 
-@app.route('/register', methods=['POST'])
+@app.route("/register", methods=["POST"])
 def register():
+
     data = request.get_json()
-    u = data.get('username', '').strip()
-    p = data.get('password', '').strip()
-    conn = sqlite3.connect('database.db')
+
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password:
+        return jsonify({
+            "message":"Boş bırakma!"
+        })
+
+    hashed = generate_password_hash(password)
+
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
+
     try:
-        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (u, p))
+        cursor.execute(
+            "INSERT INTO users(username,password) VALUES(?,?)",
+            (username, hashed)
+        )
+
         conn.commit()
-        return jsonify({'success': True})
+
+        return jsonify({
+            "message":"Kayıt başarılı"
+        })
+
     except:
-        return jsonify({'success': False, 'message': "Bu isim zaten alınmış!"})
+        return jsonify({
+            "message":"Bu kullanıcı var"
+        })
+
     finally:
         conn.close()
 
-@app.route('/login', methods=['POST'])
+@app.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
-    u = data.get('username', '').strip()
-    p = data.get('password', '').strip()
-    if u == "kral" and p == "shahram2008":
-        return jsonify({'success': True})
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (u, p))
-    user = cursor.fetchone()
-    conn.close()
-    if user:
-        return jsonify({'success': True})
-    return jsonify({'success': False, 'message': "Hatalı isim veya şifre!"})
 
-@app.route('/ask', methods=['POST'])
-def ask():
     data = request.get_json()
-    user_message = data.get('message', '')
-    username = data.get('username', 'Misafir')
-    
-    if not API_KEY or API_KEY == "":
-        return jsonify({'reply': "Kod içerisindeki API_KEY boş bırakılmış!"})
-        
-    url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
-    
+
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT password FROM users WHERE username=?",
+        (username,)
+    )
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    if user and check_password_hash(user[0], password):
+
+        return jsonify({
+            "success":True
+        })
+
+    return jsonify({
+        "success":False,
+        "message":"Hatalı giriş"
+    })
+
+@app.route("/ask", methods=["POST"])
+def ask():
+
+    data = request.get_json()
+
+    username = data.get("username", "guest")
+    user_message = data.get("message", "")
+
+    # Spam koruma
+    now = time.time()
+
+    if username in last_request:
+        if now - last_request[username] < 2:
+            return jsonify({
+                "reply":"🐱 Çok hızlı yazıyorsun."
+            })
+
+    last_request[username] = now
+
+    if not API_KEY:
+        return jsonify({
+            "reply":"API key bulunamadı."
+        })
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+
     payload = {
-        'contents': [{'parts': [{'text': user_message}]}], 
-        'systemInstruction': {'parts': [{'text': SYSTEM_PROMPT}]}
+        "contents":[
+            {
+                "parts":[
+                    {
+                        "text":user_message
+                    }
+                ]
+            }
+        ],
+        "systemInstruction":{
+            "parts":[
+                {
+                    "text":SYSTEM_PROMPT
+                }
+            ]
+        }
     }
-    
+
     try:
-        res = requests.post(url, json=payload)
-        res_data = res.json()
-        
-        if 'error' in res_data:
-            return jsonify({'reply': f"Google Hatası: {res_data['error']['message']}"})
-            
-        reply = res_data['candidates'][0]['content']['parts'][0]['text']
-        
-        conn = sqlite3.connect('database.db')
+
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=30
+        )
+
+        res_data = response.json()
+
+        if "error" in res_data:
+
+            msg = res_data["error"].get("message","")
+
+            if "quota" in msg.lower():
+                return jsonify({
+                    "reply":"😾 Limit doldu. Biraz sonra tekrar dene."
+                })
+
+            return jsonify({
+                "reply":"⚠️ Gemini hatası oluştu."
+            })
+
+        try:
+            reply = res_data["candidates"][0]["content"]["parts"][0]["text"]
+
+        except:
+            reply = "😿 Cevap alınamadı."
+
+        conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO logs (username, user_msg, bot_reply) VALUES (?, ?, ?)", (username, user_message, reply))
+
+        cursor.execute(
+            "INSERT INTO logs(username,user_msg,bot_reply) VALUES(?,?,?)",
+            (username, user_message, reply)
+        )
+
         conn.commit()
         conn.close()
-        
-        return jsonify({'reply': reply})
-    except Exception as e: 
-        return jsonify({'reply': f"Hata oluştu: {str(e)}"})
 
-@app.route('/get_logs', methods=['GET'])
-def get_logs():
-    u = request.args.get('u')
-    p = request.args.get('p')
-    if u == "kral" and p == "shahram2008":
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM logs ORDER BY id DESC")
-        logs = cursor.fetchall()
-        conn.close()
-        return jsonify({'logs': logs})
-    return jsonify({'logs': []}), 403
+        return jsonify({
+            "reply":reply
+        })
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    except Exception as e:
+
+        return jsonify({
+            "reply":f"Hata oluştu: {str(e)}"
+        })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))	
