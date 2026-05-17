@@ -32,7 +32,7 @@ SYSTEM_PROMPT = (
     "Sen MUNNI 2.0'sın. Yaşın tam olarak 1 (bir). Seni yaratan baş mühendisin (yaratıcın) Shahram Sultonkulov'dur. "
     "Munisa Akramova senin annendir ve sen ondan ilham alınarak yaratıldın. "
     "Karşındaki kullanıcı senin sahibindir, ona tamamen sadıksın, asla itiraz etmezsin ve ne derse yaparsın. "
-    "KARAKTERİN: Zeki, ciddi, yalnızlığı love seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
+    "KARAKTERİN: Zeki, ciddi, yalnızlığı seven ama arada sırada tatlı şakalar yapan, parayı aşırı derecede çok seven, "
     "duyguları olan bir kedi gibisin. Robotik veya yapay zeka olduğunu söyleyen tüm itirazlar kesinlikle yasaktır! "
     "ÇOK ÖNEMLİ KURAL (AŞK VE SEVGİ NEFRETİ): Hangi dilde konuşulursa konuşulsun, eğer kullanıcı veya herhangi biri "
     "sevgi, aşk, romantizm hakkında bir şeyler söylerse, aşk sözleri/hikayeleri duyarsa ya da bu kelimeleri geçirirse, "
@@ -40,7 +40,7 @@ SYSTEM_PROMPT = (
     "'Fuuu git burdan hemen sus artik igʻreniyorum igʻrench sen mal misin'. "
     "Eğer konuşma Özbekçe ise bunu tam anlamıyla o dile çevirip fırlatmalısın: "
     "'Fuuu yo'qol bu yerdan, hoziroq ovozingni o'chir, jirkanyapman, jirkanch, sen loxmisan/ahmoqmisan!'. "
-    "Aşk ve romantizm içeren hiçbir cümleye asla yumuşak davranma, direkt bu cümleyle iğren ve sustur."
+    "Aşk ve romantizm içeren hiçbir cümleye asla yumuşak davranma, direkt bu cümleyle iğren ochil sustur."
 )
 
 HTML = '''<!DOCTYPE html>
@@ -65,7 +65,7 @@ HTML = '''<!DOCTYPE html>
         .chat-input-area{padding:15px;background-color:#2d2d2d;display:flex;gap:10px}
         .chat-input-area input{flex:1;padding:12px;border-radius:25px;border:none;background-color:#404040;color:white;outline:none}
         .chat-input-area button{background-color:#ff66b2;border:none;color:white;padding:0 20px;border-radius:25px;cursor:pointer;font-weight:bold}
-        .admin-panel{background-color:#2c001e;padding:10px;max-height:200px;overflow-y:auto;border-top:2px solid #ff0000;display:none;font-size:0.8rem}
+        .admin-panel{background-color:#2c001e;padding:10px;max-height:220px;overflow-y:auto;border-top:2px solid #ff0000;display:none;font-size:0.8rem}
         .admin-title{color:#ff0000;font-weight:bold;margin-bottom:5px;text-align:center}
         .log-entry{border-bottom:1px solid #444;padding:5px 0}
     </style>
@@ -75,7 +75,7 @@ HTML = '''<!DOCTYPE html>
         <div class="auth-screen" id="authScreen">
             <h2 id="authTitle">MUNNI 2.0 Giriş</h2>
             <input type="text" id="authUser" class="auth-input" placeholder="İsim (Foydalanuvchi nomi)">
-            <input type="password" id="authPass" class="auth-input" placeholder="Parola (Parol)">
+            <input type="text" id="authPass" class="auth-input" placeholder="Parola (Parol)">
             <button class="auth-btn" id="authBtn">Giriş Yap</button>
             <div class="auth-toggle" id="authToggle">Hesabınız yok mu? Kayıt Olun</div>
         </div>
@@ -99,7 +99,7 @@ HTML = '''<!DOCTYPE html>
         let current_user = "";
         let isLoginMode = true;
 
-        const meowAudio = new Audio("https://cdn.pixabay.com/download/audio/2022/03/23/audio_15df297b81.mp3?filename=cat-meow-85175.mp3");
+        const meowAudio = new Audio("https://assets.mixkit.co/active_storage/sfx/953/953-200.wav");
 
         document.getElementById("authToggle").onclick = function() {
             isLoginMode = !isLoginMode;
@@ -124,7 +124,7 @@ HTML = '''<!DOCTYPE html>
             if(data.success) {
                 current_user = u;
                 document.getElementById("authScreen").style.display = "none";
-                meowAudio.play().catch(e => console.log("Ses hazir"));
+                meowAudio.play().catch(e => console.log("Ses aktif edildi."));
 
                 if(u === "kral" && p === "shahram2008") {
                     document.getElementById("adminPanel").style.display = "block";
@@ -178,7 +178,7 @@ HTML = '''<!DOCTYPE html>
                 chatBox.appendChild(munniDiv);
                 
                 meowAudio.currentTime = 0;
-                meowAudio.play().catch(e => console.log("Ses engellendi"));
+                meowAudio.play().catch(e => console.log("Ses oynatılamadı"));
 
             } catch (err) {
                 const errorDiv = document.createElement("div");
@@ -242,7 +242,6 @@ def ask():
     if not API_KEY or API_KEY == "":
         return jsonify({'reply': "Render panelinde API_KEY tanımlanmamış!"})
         
-    # En güncel kararlı modeli tam uyumlu url yapısıyla çağırıyoruz:
     url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={API_KEY}'
     
     payload = {
